@@ -2,6 +2,7 @@
 import sqlite3
 import logging
 from datetime import datetime
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -93,13 +94,11 @@ def get_client_by_id(client_id):
         conn.close()
 
 def get_all_clients():
-    """Récupère tous les clients."""
     conn, cursor = connect_db()
-    try:
-        cursor.execute("SELECT id, nom, prenom, telephone, email FROM clients")
-        return cursor.fetchall()
-    finally:
-        conn.close()
+    cursor.execute("SELECT nom, prenom, telephone, email FROM clients")
+    clients = cursor.fetchall()
+    conn.close()
+    return clients
 
 def add_reservation(client_id, type_reservation, date_reservation, heure_reservation, details=None):
     """Ajoute une nouvelle réservation."""
@@ -175,3 +174,37 @@ def delete_client(client_id):
         logger.info(f"Client {client_id} et ses réservations supprimés")
     finally:
         conn.close()
+
+        # Ajouter à database.py
+
+def add_reservation(client_id, type_reservation, date_reservation, heure_reservation, details):
+    conn, cursor = connect_db()
+    
+    # Créer la table des réservations si elle n'existe pas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS reservations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER NOT NULL,
+            type_reservation TEXT NOT NULL,
+            date_reservation TEXT NOT NULL,
+            heure_reservation TEXT NOT NULL,
+            details TEXT NOT NULL,
+            FOREIGN KEY (client_id) REFERENCES clients (id)
+        )
+    ''')
+    
+    # Convertir le dictionnaire details en JSON pour le stockage
+    details_json = json.dumps(details)
+    
+    cursor.execute('''
+        INSERT INTO reservations (
+            client_id, type_reservation, date_reservation, 
+            heure_reservation, details
+        ) VALUES (?, ?, ?, ?, ?)
+    ''', (client_id, type_reservation, date_reservation, heure_reservation, details_json))
+    
+    reservation_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return reservation_id
